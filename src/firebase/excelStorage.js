@@ -195,6 +195,8 @@ export const parseExcelFile = async (file) => {
  */
 export const storeExcelDataInFirestore = async (district, village, records, uploadedBy, metadata = {}) => {
   try {
+    console.log('🔵 Starting storeExcelDataInFirestore:', { district, village, recordCount: records.length, uploadedBy });
+    
     if (!district || !village) {
       return { success: false, error: 'District and village names are required' };
     }
@@ -204,14 +206,17 @@ export const storeExcelDataInFirestore = async (district, village, records, uplo
     }
     
     // IMPORTANT: Create district document first to make it queryable
+    console.log('📁 Creating district document:', district);
     const districtRef = doc(db, 'districts', district);
     await setDoc(districtRef, {
       name: district,
       lastUpdated: serverTimestamp(),
       hasVillages: true
     }, { merge: true });
+    console.log('✅ District document created');
     
     // Store village metadata
+    console.log('📁 Creating village document:', village);
     const villageRef = doc(db, 'districts', district, 'villages', village);
     await setDoc(villageRef, {
       villageName: village,
@@ -224,6 +229,7 @@ export const storeExcelDataInFirestore = async (district, village, records, uplo
       fileSize: metadata.fileSize || 0,
       headers: metadata.headers || []
     }, { merge: true });
+    console.log('✅ Village document created with', records.length, 'records');
     
     // Debug: Log the headers and sample data
     console.log('📊 Excel Headers:', metadata.headers);
@@ -261,7 +267,11 @@ export const storeExcelDataInFirestore = async (district, village, records, uplo
       
       await batch.commit();
       successCount += batchRecords.length;
+      console.log(`✅ Batch ${Math.floor(i / batchSize) + 1} committed: ${batchRecords.length} records`);
     }
+    
+    console.log('🎉 All data stored successfully! Total records:', successCount);
+    console.log('📍 Firebase path: districts/' + district + '/villages/' + village + '/data');
     
     return { 
       success: true, 
