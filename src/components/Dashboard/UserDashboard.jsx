@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../Context/AuthContext';
 import { getAllocationsByUserId, migrateUserAllocations } from '../../firebase/dataAllocation';
 import Sidebar from './Sidebar';
+import ViewAllocatedData from '../UserManagement/ViewAllocatedData';
 import MessageComposer from '../Messaging/MessageComposer';
 import MessageHistory from '../Messaging/MessageHistory';
 import ActivityLogs from './ActivityLogs';

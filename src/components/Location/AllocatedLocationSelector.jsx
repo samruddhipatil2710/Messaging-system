@@ -10,6 +10,9 @@ const AllocatedLocationSelector = ({ allocations = [], onLocationChange, onCount
   const [city, setCity] = useState('');
   const [count, setCount] = useState(0);
   const [validDistricts, setValidDistricts] = useState([]);
+  const [peopleList, setPeopleList] = useState([]);
+  const [showPeopleList, setShowPeopleList] = useState(false);
+  const [loadingPeople, setLoadingPeople] = useState(false);
   // Use ref to avoid showing warning multiple times
   const warningShownRef = useRef(false);
   
@@ -77,8 +80,8 @@ const AllocatedLocationSelector = ({ allocations = [], onLocationChange, onCount
   }, [allocations, user]);
 
   // Filter allocations to only include valid districts AND active date ranges
-  const today = new Date();
-  today.setHours(0, 0, 0, 0); // Reset time to midnight for accurate date comparison
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Create date at midnight
   const todayStr = today.toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
   
   console.log('🔍 Date Filtering - Today:', todayStr, 'Timestamp:', today.getTime());
@@ -92,11 +95,12 @@ const AllocatedLocationSelector = ({ allocations = [], onLocationChange, onCount
     
     // Check date range if BOTH dates are provided
     if (a.startDate && a.endDate) {
-      // Normalize dates for comparison (remove time component)
-      const startDate = new Date(a.startDate);
-      startDate.setHours(0, 0, 0, 0);
+      // Parse dates properly and normalize to midnight
+      const startParts = a.startDate.split('-');
+      const startDate = new Date(parseInt(startParts[0]), parseInt(startParts[1]) - 1, parseInt(startParts[2]));
       
-      const endDate = new Date(a.endDate);
+      const endParts = a.endDate.split('-');
+      const endDate = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]));
       endDate.setHours(23, 59, 59, 999); // Set to end of day
       
       // Check if today is within the allocation period
@@ -223,6 +227,7 @@ const AllocatedLocationSelector = ({ allocations = [], onLocationChange, onCount
 
       if (!district) {
         setCount(0);
+        setPeopleList([]);
         if (onCountChange) {
           onCountChange(0);
         }
@@ -242,12 +247,28 @@ const AllocatedLocationSelector = ({ allocations = [], onLocationChange, onCount
           
           setCount(accurateCount);
           
+          // Fetch people data
+          if (accurateCount > 0) {
+            setLoadingPeople(true);
+            const { getConsumersByLocation } = await import('../../firebase/consumerData');
+            const peopleResult = await getConsumersByLocation(district, city);
+            if (peopleResult.success) {
+              setPeopleList(peopleResult.data || []);
+            } else {
+              setPeopleList([]);
+            }
+            setLoadingPeople(false);
+          } else {
+            setPeopleList([]);
+          }
+          
           if (onCountChange) {
             onCountChange(accurateCount);
           }
         } else {
           console.error('Error getting accurate count:', result.error);
           setCount(0);
+          setPeopleList([]);
           if (onCountChange) {
             onCountChange(0);
           }
@@ -372,27 +393,103 @@ const AllocatedLocationSelector = ({ allocations = [], onLocationChange, onCount
               marginTop: '20px',
               boxShadow: '0 2px 8px rgba(76, 175, 80, 0.2)'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ 
-                  background: '#4caf50', 
-                  borderRadius: '50%', 
-                  width: '40px', 
-                  height: '40px', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center' 
-                }}>
-                  <i className="fa-solid fa-users" style={{ color: 'white', fontSize: '18px' }}></i>
-                </div>
-                <div>
-                  <div style={{ fontWeight: '700', color: '#2e7d32', fontSize: '20px' }}>
-                    {count.toLocaleString()} people available
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ 
+                    background: '#4caf50', 
+                    borderRadius: '50%', 
+                    width: '40px', 
+                    height: '40px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center' 
+                  }}>
+                    <i className="fa-solid fa-users" style={{ color: 'white', fontSize: '18px' }}></i>
                   </div>
-                  <div style={{ fontSize: '14px', color: '#388e3c', marginTop: '2px' }}>
-                    📍 {city && city !== 'All Villages' ? `${city} village, ${district} district` : `All villages in ${district} district`}
+                  <div>
+                    <div style={{ fontWeight: '700', color: '#2e7d32', fontSize: '20px' }}>
+                      {count.toLocaleString()} people available
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#388e3c', marginTop: '2px' }}>
+                      📍 {city && city !== 'All Villages' ? `${city} village, ${district} district` : `All villages in ${district} district`}
+                    </div>
                   </div>
                 </div>
+                {peopleList.length > 0 && (
+                  <button
+                    onClick={() => setShowPeopleList(!showPeopleList)}
+                    style={{
+                      padding: '8px 16px',
+                      background: '#4caf50',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <i className={`fa-solid fa-chevron-${showPeopleList ? 'up' : 'down'}`}></i>
+                    {showPeopleList ? 'Hide List' : 'View List'}
+                  </button>
+                )}
               </div>
+              
+              {/* People List */}
+              {showPeopleList && (
+                <div style={{
+                  marginTop: '15px',
+                  padding: '15px',
+                  background: 'white',
+                  borderRadius: '8px',
+                  maxHeight: '400px',
+                  overflowY: 'auto',
+                  border: '1px solid #c8e6c9'
+                }}>
+                  {loadingPeople ? (
+                    <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                      <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '24px', marginBottom: '10px' }}></i>
+                      <div>Loading people list...</div>
+                    </div>
+                  ) : peopleList.length > 0 ? (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                      gap: '10px'
+                    }}>
+                      {peopleList.map((person, index) => (
+                        <div key={index} style={{
+                          padding: '12px',
+                          background: '#f1f8e9',
+                          borderRadius: '6px',
+                          border: '1px solid #dcedc8'
+                        }}>
+                          <div style={{ fontWeight: '600', color: '#33691e', marginBottom: '4px', fontSize: '15px' }}>
+                            <i className="fa-solid fa-user" style={{ marginRight: '8px', color: '#4caf50' }}></i>
+                            {person.name || 'N/A'}
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#558b2f', marginBottom: '3px' }}>
+                            <i className="fa-solid fa-phone" style={{ marginRight: '8px' }}></i>
+                            {person.mobileNumber || 'N/A'}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#689f38' }}>
+                            <i className="fa-solid fa-map-marker-alt" style={{ marginRight: '8px' }}></i>
+                            {person.city || person.village || 'N/A'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                      <i className="fa-solid fa-inbox" style={{ fontSize: '32px', color: '#ccc', marginBottom: '10px' }}></i>
+                      <div>No people data available</div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ) : district && count === 0 ? (

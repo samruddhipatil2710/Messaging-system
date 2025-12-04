@@ -544,14 +544,27 @@ const MessageComposer = () => {
       };
 
       // Save to Firebase message history
-      await createMessage(newMessage);
+      console.log('💾 Saving message to history:', newMessage);
+      const messageResult = await createMessage(newMessage);
+      if (messageResult.success) {
+        console.log('✅ Message saved to history with ID:', messageResult.id);
+      } else {
+        console.error('❌ Failed to save message:', messageResult.error);
+      }
 
       // Add activity log to Firebase
-      await createActivityLog({
+      const activityLogData = {
         action: 'message_sent',
         performedBy: user.email,
         details: `Sent ${messageType.toUpperCase()} message to ${sendResult.count || 0} people in ${locationDesc} (${sendResult.failed || 0} failed)`
-      });
+      };
+      console.log('📝 Creating activity log:', activityLogData);
+      const logResult = await createActivityLog(activityLogData);
+      if (logResult.success) {
+        console.log('✅ Activity log created with ID:', logResult.id);
+      } else {
+        console.error('❌ Failed to create activity log:', logResult.error);
+      }
       
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);

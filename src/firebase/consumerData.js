@@ -465,3 +465,70 @@ export const processExcelData = (excelData) => {
     };
   });
 };
+
+/**
+ * Get consumers by district and village from Firebase
+ * @param {string} district - District name
+ * @param {string} village - Village/city name (optional)
+ * @returns {Promise<Object>} - Success status and array of consumer data
+ */
+export const getConsumersByLocation = async (district, village = null) => {
+  try {
+    if (!district) {
+      return { success: false, error: 'District is required', data: [] };
+    }
+
+    const consumers = [];
+
+    if (village && village !== 'All Villages') {
+      // Get consumers for specific village from districts/{district}/villages/{village}/data
+      const villageDocRef = doc(db, 'districts', district, 'villages', village);
+      const dataRef = collection(villageDocRef, 'data');
+      const snapshot = await getDocs(dataRef);
+      
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        consumers.push({
+          id: doc.id,
+          name: data.name || data.Name || 'N/A',
+          mobileNumber: data.mobileNumber || data['Mobile Number'] || data.mobile || 'N/A',
+          city: village,
+          village: village,
+          district: district,
+          ...data
+        });
+      });
+    } else {
+      // Get consumers for all villages in district
+      const villagesRef = collection(db, 'districts', district, 'villages');
+      const villagesSnapshot = await getDocs(villagesRef);
+      
+      // For each village, get its data
+      for (const villageDoc of villagesSnapshot.docs) {
+        const villageName = villageDoc.id;
+        const dataRef = collection(villageDoc.ref, 'data');
+        const dataSnapshot = await getDocs(dataRef);
+        
+        dataSnapshot.forEach(doc => {
+          const data = doc.data();
+          consumers.push({
+            id: doc.id,
+            name: data.name || data.Name || 'N/A',
+            mobileNumber: data.mobileNumber || data['Mobile Number'] || data.mobile || 'N/A',
+            city: villageName,
+            village: villageName,
+            district: district,
+            ...data
+          });
+        });
+      }
+    }
+
+    console.log(`✅ Fetched ${consumers.length} consumers for ${district}${village ? ` - ${village}` : ''}`);
+    return { success: true, data: consumers };
+  } catch (error) {
+    console.error('Error getting consumers by location:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+};
+
